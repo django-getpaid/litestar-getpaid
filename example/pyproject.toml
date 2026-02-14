@@ -20,6 +20,3 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["."]
 
-[tool.uv.sources]
-litestar-getpaid = { path = "..", editable = true }
-python-getpaid-core = { path = "../../getpaid-core", editable = true }
