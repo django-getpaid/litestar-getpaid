@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Gateway — litestar-getpaid Example{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-azure-lt">
+                <h3 class="card-title">Fake Payment Gateway</h3>
+            </div>
+            <div class="card-body">
+                <p class="text-secondary">{{ message | default("Payment authorization") }}</p>
+
+                <div class="datagrid">
+                    {% if ext_id %}
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Payment ID</div>
+                        <div class="datagrid-content">
+                            <code>{{ ext_id[:8] if ext_id|length > 8 else ext_id }}...</code>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if value %}
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Amount</div>
+                        <div class="datagrid-content"><strong>{{ value }} {{ currency }}</strong></div>
+                    </div>
+                    {% endif %}
+                    {% if description %}
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Description</div>
+                        <div class="datagrid-content">{{ description }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <hr>
+                <p>Do you authorize this payment?</p>
+
+                <form method="post" action="/paywall/authorize">
+                    <input type="hidden" name="callback" value="{{ callback }}">
+                    <input type="hidden" name="success_url" value="{{ success_url }}">
+                    <input type="hidden" name="failure_url" value="{{ failure_url }}">
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="authorize_payment" value="1"
+                                class="btn btn-success btn-lg w-50">
+                            Approve Payment
+                        </button>
+                        <button type="submit" name="authorize_payment" value="0"
+                                class="btn btn-danger btn-lg w-50">
+                            Reject Payment
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-secondary text-center">
+                <small>This is a simulated payment gateway for testing purposes.</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Orders — litestar-getpaid Example{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Create New Order</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" action="/orders/create">
+                    <div class="mb-3">
+                        <label class="form-label" for="description">Description</label>
+                        <input type="text" class="form-control" id="description"
+                               name="description" required
+                               placeholder="e.g. T-shirt, Book">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="amount">Amount</label>
+                        <input type="number" class="form-control" id="amount"
+                               name="amount" step="0.01" min="0.01" required
+                               placeholder="99.99">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="currency">Currency</label>
+                        <select class="form-select" id="currency" name="currency">
+                            <option value="PLN" selected>PLN</option>
+                            <option value="EUR">EUR</option>
+                            <option value="USD">USD</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Order</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Existing Orders</h3>
+            </div>
+            {% if orders %}
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Amount</th>
+                            <th>ID</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>{{ order.description }}</td>
+                            <td>{{ order.amount }} {{ order.currency }}</td>
+                            <td class="text-secondary">{{ order.id[:8] }}...</td>
+                            <td>
+                                <a href="/orders/{{ order.id }}" class="btn btn-sm btn-outline-primary">
+                                    View
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="card-body">
+                <p class="text-secondary">No orders yet. Create one using the form.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Order {{ order.id[:8] }}... — litestar-getpaid Example{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Order Details</h3>
+            </div>
+            <div class="card-body">
+                <div class="datagrid">
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">ID</div>
+                        <div class="datagrid-content"><code>{{ order.id }}</code></div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Description</div>
+                        <div class="datagrid-content">{{ order.description }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Amount</div>
+                        <div class="datagrid-content">{{ order.amount }} {{ order.currency }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Created</div>
+                        <div class="datagrid-content">{{ order.created_at }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h3 class="card-title">Pay for this order</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" action="/orders/{{ order.id }}/pay">
+                    <p>Click below to initiate a payment using the dummy backend.
+                       You will be redirected to the fake payment gateway where you
+                       can approve or reject the payment.</p>
+                    <button type="submit" class="btn btn-success btn-lg">
+                        Pay {{ order.amount }} {{ order.currency }}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Payments</h3>
+            </div>
+            {% if payments %}
+            <div class="list-group list-group-flush">
+                {% for payment in payments %}
+                <div class="list-group-item">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <code>{{ payment.id[:8] }}...</code>
+                        </div>
+                        <div class="col">
+                            <div>{{ payment.amount_required }} {{ payment.currency }}</div>
+                            <div class="text-secondary">Backend: {{ payment.backend }}</div>
+                        </div>
+                        <div class="col-auto">
+                            {% if payment.status == "paid" %}
+                            <span class="badge bg-success">{{ payment.status }}</span>
+                            {% elif payment.status == "failed" %}
+                            <span class="badge bg-danger">{{ payment.status }}</span>
+                            {% elif payment.status == "prepared" %}
+                            <span class="badge bg-warning">{{ payment.status }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ payment.status }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="card-body">
+                <p class="text-secondary">No payments yet.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="/" class="btn btn-outline-secondary">Back to Orders</a>
+</div>
+{% endblock %}
