@@ -4,6 +4,8 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from getpaid_core.exceptions import CommunicationError
+from getpaid_core.exceptions import InvalidCallbackError
 from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import TestClient
@@ -95,6 +97,9 @@ def test_callback_returns_200_on_success(client, mock_repo):
         )
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
+    raw_body = instance.handle_callback.await_args.kwargs["raw_body"]
+    assert isinstance(raw_body, bytes)
+    assert b'"status":"paid"' in raw_body
 
 
 def test_callback_payment_not_found(client, mock_repo):
@@ -129,7 +134,7 @@ def test_callback_stores_retry_on_failure(config, mock_repo):
         instance = AsyncMock()
         mock_flow_cls.return_value = instance
         instance.handle_callback = AsyncMock(
-            side_effect=Exception("gateway error")
+            side_effect=CommunicationError("gateway error")
         )
 
         with TestClient(app) as test_client:
@@ -139,3 +144,36 @@ def test_callback_stores_retry_on_failure(config, mock_repo):
             )
     assert resp.status_code == 502
     retry_store.store_failed_callback.assert_called_once()
+
+
+def test_invalid_callback_returns_400_and_skips_retry(config, mock_repo):
+    """Invalid callback should not be queued for retry."""
+    retry_store = AsyncMock()
+    retry_store.store_failed_callback = AsyncMock(return_value="retry-1")
+
+    app = Litestar(
+        route_handlers=[CallbackController],
+        dependencies={
+            "config": Provide(lambda: config, sync_to_thread=False),
+            "repository": Provide(lambda: mock_repo, sync_to_thread=False),
+            "retry_store": Provide(lambda: retry_store, sync_to_thread=False),
+        },
+        exception_handlers=EXCEPTION_HANDLERS,
+    )
+
+    with patch(
+        "litestar_getpaid.routes.callbacks.PaymentFlow",
+    ) as mock_flow_cls:
+        instance = AsyncMock()
+        mock_flow_cls.return_value = instance
+        instance.handle_callback = AsyncMock(
+            side_effect=InvalidCallbackError("bad signature")
+        )
+
+        with TestClient(app) as test_client:
+            resp = test_client.post(
+                "/callback/pay-1",
+                json={"status": "paid"},
+            )
+    assert resp.status_code == 400
+    retry_store.store_failed_callback.assert_not_called()

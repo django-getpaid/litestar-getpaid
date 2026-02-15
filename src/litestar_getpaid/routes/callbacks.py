@@ -3,6 +3,7 @@
 import logging
 from typing import Annotated
 
+from getpaid_core.exceptions import CommunicationError, InvalidCallbackError
 from getpaid_core.flow import PaymentFlow
 from getpaid_core.protocols import PaymentRepository
 from litestar import Controller, Request, Response, post
@@ -45,6 +46,7 @@ class CallbackController(Controller):
             config=config.backends,
         )
 
+        raw_body = await request.body()
         callback_headers = dict(request.headers)
 
         try:
@@ -52,12 +54,17 @@ class CallbackController(Controller):
                 payment=payment,
                 data=data,
                 headers=callback_headers,
+                raw_body=raw_body,
             )
-        except Exception as exc:
+        except InvalidCallbackError:
+            raise
+        except CommunicationError as exc:
             if retry_store is not None:
+                retry_payload = dict(data)
+                retry_payload["_raw_body"] = raw_body.decode("utf-8")
                 await retry_store.store_failed_callback(
                     payment_id=payment_id,
-                    payload=data,
+                    payload=retry_payload,
                     headers=callback_headers,
                 )
                 logger.warning(

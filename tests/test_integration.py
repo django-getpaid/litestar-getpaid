@@ -3,6 +3,7 @@
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
+from getpaid_core.exceptions import CommunicationError
 from litestar import Litestar
 from litestar.testing import TestClient
 from sqlalchemy import select
@@ -120,9 +121,6 @@ def test_create_and_get_payment(
                 json={
                     "order_id": "order-1",
                     "backend": "dummy",
-                    "amount": "100.00",
-                    "currency": "PLN",
-                    "description": "Integration test",
                 },
             )
 
@@ -168,7 +166,7 @@ async def test_callback_with_retry_on_failure(
         instance = AsyncMock()
         mock_flow_cls.return_value = instance
         instance.handle_callback = AsyncMock(
-            side_effect=Exception("gateway timeout"),
+            side_effect=CommunicationError("gateway timeout"),
         )
 
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -195,7 +193,8 @@ async def test_callback_with_retry_on_failure(
     assert len(retries) == 1
     retry = retries[0]
     assert retry.payment_id == payment.id
-    assert retry.payload == {"status": "paid"}
+    assert retry.payload["status"] == "paid"
+    assert retry.payload["_raw_body"] == '{"status":"paid"}'
     assert retry.status == "pending"
     assert retry.attempts == 0
 

@@ -140,9 +140,6 @@ def test_create_payment(config, mock_repo, mock_payment):
                 json={
                     "order_id": "order-1",
                     "backend": "dummy",
-                    "amount": "100.00",
-                    "currency": "PLN",
-                    "description": "Test",
                 },
             )
 
@@ -160,8 +157,6 @@ def test_create_payment_without_resolver(app):
             json={
                 "order_id": "order-1",
                 "backend": "dummy",
-                "amount": "100.00",
-                "currency": "PLN",
             },
         )
     assert resp.status_code == 500
