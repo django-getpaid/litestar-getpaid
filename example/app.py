@@ -2,7 +2,8 @@
 
 This app provides:
 - A simple order management UI (create orders, view order details)
-- Payment processing via litestar-getpaid with multiple backends (Dummy, PayU, Paynow)
+- Payment processing via litestar-getpaid with multiple backends
+  (Dummy, PayU, Paynow)
 - A fake payment gateway simulator (paywall) for interactive testing
 - Environment variable configuration for sandbox credentials
 
@@ -26,17 +27,19 @@ from decimal import Decimal, InvalidOperation
 from typing import Annotated
 
 import httpx
+from getpaid_core.backends.dummy import DummyProcessor
+from getpaid_core.registry import registry as global_registry
 from litestar import Litestar, Request, Router, get, post
 from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.enums import RequestEncodingType
 from litestar.params import Body
 from litestar.response import Redirect, Template
 from litestar.template import TemplateConfig
+from models import Order as OrderModel
+from paywall import configure as configure_paywall
+from paywall import paywall_router
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-from getpaid_core.backends.dummy import DummyProcessor
-from getpaid_core.registry import registry as global_registry
 
 from litestar_getpaid.config import GetpaidConfig
 from litestar_getpaid.contrib.sqlalchemy.models import Base
@@ -47,10 +50,6 @@ from litestar_getpaid.contrib.sqlalchemy.retry_store import (
     SQLAlchemyRetryStore,
 )
 from litestar_getpaid.plugin import create_payment_router
-
-from models import Order as OrderModel
-from paywall import configure as configure_paywall
-from paywall import paywall_router
 
 # --- Database setup ---
 

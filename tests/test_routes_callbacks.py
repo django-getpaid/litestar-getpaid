@@ -4,8 +4,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from getpaid_core.exceptions import CommunicationError
-from getpaid_core.exceptions import InvalidCallbackError
+from getpaid_core.exceptions import CommunicationError, InvalidCallbackError
 from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import TestClient

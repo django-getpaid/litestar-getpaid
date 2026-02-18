@@ -17,9 +17,8 @@ from litestar import Request, Router, get, post
 from litestar.enums import RequestEncodingType
 from litestar.params import Body
 from litestar.response import Redirect, Template
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
 from models import PaywallEntry
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 logger = logging.getLogger(__name__)
 
