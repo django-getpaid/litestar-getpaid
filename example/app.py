@@ -2,8 +2,9 @@
 
 This app provides:
 - A simple order management UI (create orders, view order details)
-- Payment processing via litestar-getpaid with the dummy backend
+- Payment processing via litestar-getpaid with multiple backends (Dummy, PayU, Paynow)
 - A fake payment gateway simulator (paywall) for interactive testing
+- Environment variable configuration for sandbox credentials
 
 Payment flow:
 1. User creates an order on the home page
@@ -17,7 +18,9 @@ Payment flow:
 9. User is redirected back to the order detail page
 """
 
+import os
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Annotated
@@ -75,7 +78,7 @@ class ExampleOrderResolver:
 # --- Configuration ---
 
 config = GetpaidConfig(
-    default_backend="dummy",
+    default_backend=os.environ.get("GETPAID_DEFAULT_BACKEND", "dummy"),
     success_url="http://127.0.0.1:8001/order-success",
     failure_url="http://127.0.0.1:8001/order-failure",
     backends={
@@ -83,6 +86,28 @@ config = GetpaidConfig(
             "module": "getpaid_core.backends.dummy",
             "gateway": "http://127.0.0.1:8001/paywall/gateway",
             "confirmation_method": "push",
+        },
+        "payu": {
+            "module": "getpaid_payu",
+            "pos_id": os.environ.get("PAYU_POS_ID", "300746"),
+            "second_key": os.environ.get(
+                "PAYU_SECOND_KEY", "b6ca15b0d1020e8094d9b5f8d163db54"
+            ),
+            "oauth_id": os.environ.get("PAYU_OAUTH_ID", "300746"),
+            "oauth_secret": os.environ.get(
+                "PAYU_OAUTH_SECRET", "2ee86a66e5d97e3fadc400c9f19b065d"
+            ),
+            "sandbox": True,
+        },
+        "paynow": {
+            "module": "getpaid_paynow",
+            "api_key": os.environ.get(
+                "PAYNOW_API_KEY", "d2e1d881-40b0-4b7e-9168-181bae3dc4e0"
+            ),
+            "signature_key": os.environ.get(
+                "PAYNOW_SIGNATURE_KEY", "8e42a868-5562-440d-817c-4921632fb049"
+            ),
+            "sandbox": True,
         },
     },
 )
@@ -107,6 +132,7 @@ payment_router = create_payment_router(
 # --- App lifespan ---
 
 
+@asynccontextmanager
 async def lifespan(app: Litestar) -> AsyncGenerator[None, None]:
     """Create database tables on startup."""
     async with engine.begin() as conn:
@@ -206,7 +232,7 @@ async def order_detail(order_id: str) -> Template:
 async def initiate_payment(
     request: Request,
     order_id: str,
-) -> Redirect:
+) -> Redirect | Template:
     """Initiate a payment for an order.
 
     1. Call POST /api/payments/ to create a payment and run the
@@ -217,47 +243,83 @@ async def initiate_payment(
     async with session_factory() as session:
         order = await session.get(OrderModel, order_id)
         if order is None:
-            return Redirect(path="/", status_code=303)
+            return Template(
+                template_name="404.html",
+                context={"message": "Order not found"},
+                status_code=404,
+            )
         session.expunge(order)
 
-    # Step 1: Create payment via the library's REST API.
     base_url = str(request.base_url).rstrip("/")
-    async with httpx.AsyncClient(base_url=base_url) as client:
-        resp = await client.post(
-            "/api/payments/",
-            json={
-                "order_id": order_id,
-                "backend": "dummy",
-                "amount": str(order.amount),
-                "currency": order.currency,
-                "description": order.description,
-            },
+    backend = os.environ.get("GETPAID_DEFAULT_BACKEND", "dummy")
+
+    try:
+        async with httpx.AsyncClient(base_url=base_url) as client:
+            resp = await client.post(
+                "/api/payments/",
+                json={
+                    "order_id": order_id,
+                    "backend": backend,
+                    "amount": str(order.amount),
+                    "currency": order.currency,
+                    "description": order.description,
+                },
+            )
+            if resp.status_code != 201:
+                error_detail = "Failed to create payment"
+                try:
+                    error_data = resp.json()
+                    if "detail" in error_data:
+                        error_detail = error_data["detail"]
+                except Exception:
+                    pass
+                return Template(
+                    template_name="404.html",
+                    context={"message": f"Payment error: {error_detail}"},
+                    status_code=400,
+                )
+            payment_data = resp.json()
+    except httpx.RequestError as exc:
+        return Template(
+            template_name="404.html",
+            context={"message": f"Network error: {exc}"},
+            status_code=500,
         )
-        if resp.status_code != 201:
-            return Redirect(path=f"/orders/{order_id}", status_code=303)
-        payment_data = resp.json()
 
     payment_id = payment_data["payment_id"]
 
-    # Step 2: Register with the paywall (fake gateway simulator).
     callback_url = f"{base_url}/api/callback/{payment_id}"
 
-    async with httpx.AsyncClient(base_url=base_url) as client:
-        resp = await client.post(
-            "/paywall/register",
-            json={
-                "ext_id": payment_id,
-                "value": str(order.amount),
-                "currency": order.currency,
-                "description": order.description,
-                "callback": callback_url,
-                "success_url": f"{base_url}/orders/{order_id}",
-                "failure_url": f"{base_url}/orders/{order_id}",
-            },
+    try:
+        async with httpx.AsyncClient(base_url=base_url) as client:
+            resp = await client.post(
+                "/paywall/register",
+                json={
+                    "ext_id": payment_id,
+                    "value": str(order.amount),
+                    "currency": order.currency,
+                    "description": order.description,
+                    "callback": callback_url,
+                    "success_url": f"{base_url}/orders/{order_id}",
+                    "failure_url": f"{base_url}/orders/{order_id}",
+                },
+            )
+            if resp.status_code != 200:
+                return Template(
+                    template_name="404.html",
+                    context={
+                        "message": "Failed to register with payment gateway"
+                    },
+                    status_code=400,
+                )
+            gateway_data = resp.json()
+    except httpx.RequestError as exc:
+        return Template(
+            template_name="404.html",
+            context={"message": f"Gateway connection error: {exc}"},
+            status_code=500,
         )
-        gateway_data = resp.json()
 
-    # Redirect user to the fake gateway authorization page.
     return Redirect(path=gateway_data["url"], status_code=303)
 
 
