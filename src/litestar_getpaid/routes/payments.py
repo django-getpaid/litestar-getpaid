@@ -5,6 +5,8 @@ from typing import Annotated, Any
 
 from getpaid_core.flow import PaymentFlow
 from getpaid_core.protocols import PaymentRepository
+from getpaid_core.registry import PluginRegistry
+from getpaid_core.types import TransactionResult
 from litestar import Controller, get, post
 from litestar.params import Dependency
 
@@ -41,6 +43,7 @@ def _payment_to_response(payment: Any) -> PaymentResponse:
         amount_refunded=payment.amount_refunded,
         fraud_status=payment.fraud_status,
         fraud_message=payment.fraud_message,
+        provider_data=getattr(payment, "provider_data", {}),
     )
 
 
@@ -86,6 +89,7 @@ class PaymentController(Controller):
         repository: Annotated[
             PaymentRepository, Dependency(skip_validation=True)
         ],
+        registry: Annotated[PluginRegistry, Dependency(skip_validation=True)],
         order_resolver: Annotated[
             OrderResolver | None, Dependency(skip_validation=True)
         ] = None,
@@ -94,12 +98,21 @@ class PaymentController(Controller):
         if order_resolver is None:
             raise ConfigurationError("No order resolver configured")
         order = await order_resolver.resolve(data.order_id)
-        flow = PaymentFlow(repository=repository, config=config.backends)
+        flow = PaymentFlow(
+            repository=repository,
+            config=config.backends,
+            registry=registry,
+        )
         payment = await flow.create_payment(order, data.backend)
         result = await flow.prepare(payment)
+        if not isinstance(result, TransactionResult):
+            raise TypeError(
+                "PaymentFlow.prepare() must return TransactionResult"
+            )
         return CreatePaymentResponse(
             payment_id=str(payment.id),
-            redirect_url=result.get("redirect_url"),
-            method=result.get("method", "GET"),
-            form_data=result.get("form_data"),
+            redirect_url=result.redirect_url,
+            method=result.method.value,
+            form_data=result.form_data,
+            provider_data=result.provider_data,
         )

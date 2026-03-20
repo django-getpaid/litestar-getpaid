@@ -4,12 +4,14 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from getpaid_core.types import TransactionResult
 from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import TestClient
 
 from litestar_getpaid.config import GetpaidConfig
 from litestar_getpaid.exceptions import EXCEPTION_HANDLERS
+from litestar_getpaid.registry import LitestarPluginRegistry
 from litestar_getpaid.routes.payments import PaymentController
 
 
@@ -40,6 +42,7 @@ def mock_payment():
     payment.amount_refunded = Decimal("0")
     payment.fraud_status = None
     payment.fraud_message = None
+    payment.provider_data = {"customer_ip": "127.0.0.1"}
     return payment
 
 
@@ -60,6 +63,10 @@ def app(config, mock_repo):
         dependencies={
             "config": Provide(lambda: config, sync_to_thread=False),
             "repository": Provide(lambda: mock_repo, sync_to_thread=False),
+            "registry": Provide(
+                lambda: LitestarPluginRegistry(),
+                sync_to_thread=False,
+            ),
             "order_resolver": Provide(lambda: None, sync_to_thread=False),
         },
         exception_handlers=EXCEPTION_HANDLERS,
@@ -116,6 +123,10 @@ def test_create_payment(config, mock_repo, mock_payment):
         dependencies={
             "config": Provide(lambda: config, sync_to_thread=False),
             "repository": Provide(lambda: mock_repo, sync_to_thread=False),
+            "registry": Provide(
+                lambda: LitestarPluginRegistry(),
+                sync_to_thread=False,
+            ),
             "order_resolver": Provide(lambda: resolver, sync_to_thread=False),
         },
         exception_handlers=EXCEPTION_HANDLERS,
@@ -126,12 +137,13 @@ def test_create_payment(config, mock_repo, mock_payment):
         mock_flow_cls.return_value = instance
         instance.create_payment = AsyncMock(return_value=mock_payment)
         instance.prepare = AsyncMock(
-            return_value={
-                "redirect_url": "https://gateway.example.com/pay",
-                "form_data": None,
-                "method": "GET",
-                "headers": {},
-            }
+            return_value=TransactionResult(
+                redirect_url="https://gateway.example.com/pay",
+                form_data=None,
+                method="GET",
+                external_id="ext-123",
+                provider_data={"customer_ip": "127.0.0.1"},
+            )
         )
 
         with TestClient(app) as test_client:
@@ -147,6 +159,13 @@ def test_create_payment(config, mock_repo, mock_payment):
     data = resp.json()
     assert data["payment_id"] == "pay-1"
     assert data["redirect_url"] == "https://gateway.example.com/pay"
+    assert data["provider_data"] == {"customer_ip": "127.0.0.1"}
+
+
+def test_payment_response_includes_provider_data(client):
+    resp = client.get("/payments/pay-1")
+    assert resp.status_code == 200
+    assert resp.json()["provider_data"] == {"customer_ip": "127.0.0.1"}
 
 
 def test_create_payment_without_resolver(app):

@@ -21,7 +21,7 @@ with `litestar-getpaid` and multiple payment backends (DummyProcessor, PayU, Pay
 5. User is redirected to the paywall authorization page.
 6. User approves or rejects the payment.
 7. The paywall sends a callback to the litestar-getpaid callback endpoint.
-8. The payment status is updated via the FSM.
+8. The payment status is updated via semantic payment events.
 9. User is redirected back to the order detail page.
 
 ## Running

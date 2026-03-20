@@ -6,6 +6,7 @@ from typing import Annotated
 from getpaid_core.exceptions import CommunicationError, InvalidCallbackError
 from getpaid_core.flow import PaymentFlow
 from getpaid_core.protocols import PaymentRepository
+from getpaid_core.registry import PluginRegistry
 from litestar import Controller, Request, Response, post
 from litestar.params import Dependency
 
@@ -31,6 +32,7 @@ class CallbackController(Controller):
         repository: Annotated[
             PaymentRepository, Dependency(skip_validation=True)
         ],
+        registry: Annotated[PluginRegistry, Dependency(skip_validation=True)],
         retry_store: Annotated[
             CallbackRetryStore | None, Dependency(skip_validation=True)
         ] = None,
@@ -44,6 +46,7 @@ class CallbackController(Controller):
         flow = PaymentFlow(
             repository=repository,
             config=config.backends,
+            registry=registry,
         )
 
         raw_body = await request.body()

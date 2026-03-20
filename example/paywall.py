@@ -148,19 +148,19 @@ async def paywall_authorize(
             callback_url = data.callback
 
         if data.authorize_payment == "1":
-            # Approved: send confirm_payment FSM trigger via callback.
+            # Approved: send semantic payment capture event via callback.
             async with httpx.AsyncClient() as client:
                 await client.post(
                     callback_url,
-                    json={"new_status": "confirm_payment"},
+                    json={"status": "paid"},
                 )
             return Redirect(path=data.success_url, status_code=303)
         else:
-            # Rejected: send fail FSM trigger via callback.
+            # Rejected: send semantic failure event via callback.
             async with httpx.AsyncClient() as client:
                 await client.post(
                     callback_url,
-                    json={"new_status": "fail"},
+                    json={"status": "failed"},
                 )
             return Redirect(path=data.failure_url, status_code=303)
 

@@ -11,6 +11,7 @@ from litestar.testing import TestClient
 
 from litestar_getpaid.config import GetpaidConfig
 from litestar_getpaid.exceptions import EXCEPTION_HANDLERS
+from litestar_getpaid.registry import LitestarPluginRegistry
 from litestar_getpaid.routes.callbacks import CallbackController
 
 
@@ -41,6 +42,7 @@ def mock_repo():
     payment.amount_refunded = Decimal("0")
     payment.fraud_status = ""
     payment.fraud_message = ""
+    payment.provider_data = {}
     repo.get_by_id = AsyncMock(return_value=payment)
     repo.save = AsyncMock(return_value=payment)
     return repo
@@ -53,6 +55,10 @@ def app(config, mock_repo):
         dependencies={
             "config": Provide(lambda: config, sync_to_thread=False),
             "repository": Provide(lambda: mock_repo, sync_to_thread=False),
+            "registry": Provide(
+                lambda: LitestarPluginRegistry(),
+                sync_to_thread=False,
+            ),
             "retry_store": Provide(lambda: None, sync_to_thread=False),
         },
         exception_handlers=EXCEPTION_HANDLERS,
@@ -101,6 +107,33 @@ def test_callback_returns_200_on_success(client, mock_repo):
     assert b'"status":"paid"' in raw_body
 
 
+def test_callback_flow_uses_injected_registry(config, mock_repo):
+    registry = LitestarPluginRegistry()
+    app = Litestar(
+        route_handlers=[CallbackController],
+        dependencies={
+            "config": Provide(lambda: config, sync_to_thread=False),
+            "repository": Provide(lambda: mock_repo, sync_to_thread=False),
+            "registry": Provide(lambda: registry, sync_to_thread=False),
+            "retry_store": Provide(lambda: None, sync_to_thread=False),
+        },
+        exception_handlers=EXCEPTION_HANDLERS,
+    )
+
+    with patch(
+        "litestar_getpaid.routes.callbacks.PaymentFlow"
+    ) as mock_flow_cls:
+        instance = AsyncMock()
+        mock_flow_cls.return_value = instance
+        instance.handle_callback = AsyncMock()
+
+        with TestClient(app) as client:
+            resp = client.post("/callback/pay-1", json={"status": "paid"})
+
+    assert resp.status_code == 200
+    assert mock_flow_cls.call_args.kwargs["registry"] is registry
+
+
 def test_callback_payment_not_found(client, mock_repo):
     """404 when payment not found."""
     mock_repo.get_by_id = AsyncMock(side_effect=KeyError("pay-999"))
@@ -122,6 +155,10 @@ def test_callback_stores_retry_on_failure(config, mock_repo):
         dependencies={
             "config": Provide(lambda: config, sync_to_thread=False),
             "repository": Provide(lambda: mock_repo, sync_to_thread=False),
+            "registry": Provide(
+                lambda: LitestarPluginRegistry(),
+                sync_to_thread=False,
+            ),
             "retry_store": Provide(lambda: retry_store, sync_to_thread=False),
         },
         exception_handlers=EXCEPTION_HANDLERS,
@@ -155,6 +192,10 @@ def test_invalid_callback_returns_400_and_skips_retry(config, mock_repo):
         dependencies={
             "config": Provide(lambda: config, sync_to_thread=False),
             "repository": Provide(lambda: mock_repo, sync_to_thread=False),
+            "registry": Provide(
+                lambda: LitestarPluginRegistry(),
+                sync_to_thread=False,
+            ),
             "retry_store": Provide(lambda: retry_store, sync_to_thread=False),
         },
         exception_handlers=EXCEPTION_HANDLERS,

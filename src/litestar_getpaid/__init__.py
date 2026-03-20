@@ -14,10 +14,10 @@ __all__ = [
     "GetpaidConfig",
     "LitestarPluginRegistry",
     "OrderResolver",
+    "Payment",
     "PaymentListResponse",
     "PaymentNotFoundError",
     "PaymentResponse",
-    "PaymentWithHelpers",
     "__version__",
     "create_payment_router",
 ]
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from litestar_getpaid.protocols import (
         CallbackRetryStore,
         OrderResolver,
-        PaymentWithHelpers,
+        Payment,
     )
     from litestar_getpaid.registry import LitestarPluginRegistry
     from litestar_getpaid.schemas import (
@@ -68,7 +68,7 @@ def __getattr__(name: str):
 
         return ConfigurationError
     if name in (
-        "PaymentWithHelpers",
+        "Payment",
         "OrderResolver",
         "CallbackRetryStore",
     ):

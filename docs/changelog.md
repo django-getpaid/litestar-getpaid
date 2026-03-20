@@ -11,7 +11,7 @@ Initial alpha release.
 - REST endpoints: create payment, get payment, list payments, handle callback,
   success/failure redirects
 - Litestar Controllers with `Provide()` dependency injection
-- `PaymentWithHelpers` protocol extending core `Payment` with FSM guards
+- `Payment` protocol re-export from core for wrapper integrations
 - `OrderResolver` protocol for pluggable order lookup
 - `CallbackRetryStore` protocol for webhook retry persistence
 - `LitestarPluginRegistry` wrapping core registry with per-backend router support

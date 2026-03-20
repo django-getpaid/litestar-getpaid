@@ -29,6 +29,7 @@ async def process_due_retries(
     retry_store: CallbackRetryStore,
     repository: PaymentRepository,
     config: GetpaidConfig,
+    registry=None,
     limit: int = 10,
 ) -> int:
     """Process all due callback retries.
@@ -60,6 +61,7 @@ async def process_due_retries(
         flow = PaymentFlow(
             repository=repository,
             config=config.backends,
+            registry=registry,
         )
         raw_body = payload.get("_raw_body")
         callback_kwargs = {"raw_body": raw_body} if raw_body is not None else {}
