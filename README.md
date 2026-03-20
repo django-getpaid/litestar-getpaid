@@ -9,7 +9,7 @@
 
 `litestar-getpaid` is a thin but powerful wrapper around [getpaid-core](https://github.com/django-getpaid/python-getpaid-core), designed specifically for the Litestar framework. It provides a ready-to-use REST API for creating payments, handling callbacks, and managing redirects, all while staying fully asynchronous.
 
-> **v3.0.0a2 (Alpha)** — This is a pre-release. The API follows the major v3 overhaul of the Getpaid ecosystem.
+> **v3.0.0a3 (Alpha)** — This is a pre-release. The API follows the major v3 overhaul of the Getpaid ecosystem.
 
 ## Features
 
@@ -119,4 +119,3 @@ uv run python app.py
 ## License
 
 This project is licensed under the MIT License.
-
