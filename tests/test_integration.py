@@ -1,12 +1,16 @@
 """Full-stack integration tests: router + real SQLAlchemy repo + retry store."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
+from httpx import ASGITransport
+from httpx import AsyncClient
+import pytest
 from getpaid_core.exceptions import CommunicationError
 from getpaid_core.types import TransactionResult
 from litestar import Litestar
-from litestar.testing import TestClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -22,6 +26,17 @@ from litestar_getpaid.contrib.sqlalchemy.retry_store import (
     SQLAlchemyRetryStore,
 )
 from litestar_getpaid.plugin import create_payment_router
+
+
+@asynccontextmanager
+async def _test_client(
+    app: Litestar,
+) -> AsyncIterator[AsyncClient]:
+    async with AsyncClient(
+        transport=ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://testserver",
+    ) as client:
+        yield client
 
 
 class DummyOrder:
@@ -70,7 +85,8 @@ def _make_full_app(
     return Litestar(route_handlers=[router])
 
 
-def test_full_app_starts(
+@pytest.mark.asyncio
+async def test_full_app_starts(
     getpaid_config: GetpaidConfig,
     async_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -88,8 +104,8 @@ def test_full_app_starts(
         retry_store=retry_store,
     )
 
-    with TestClient(app, raise_server_exceptions=False) as client:
-        resp = client.get("/payments/nonexistent-id")
+    async with _test_client(app) as client:
+        resp = await client.get("/payments/nonexistent-id")
 
     assert resp.status_code == 404
     data = resp.json()
@@ -97,7 +113,8 @@ def test_full_app_starts(
     assert "nonexistent-id" in data["detail"]
 
 
-def test_create_and_get_payment(
+@pytest.mark.asyncio
+async def test_create_and_get_payment(
     getpaid_config: GetpaidConfig,
     async_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -148,8 +165,8 @@ def test_create_and_get_payment(
             )
         )
 
-        with TestClient(app, raise_server_exceptions=False) as client:
-            resp = client.post(
+        async with _test_client(app) as client:
+            resp = await client.post(
                 "/payments/",
                 json={
                     "order_id": "order-1",
@@ -203,8 +220,8 @@ async def test_callback_with_retry_on_failure(
             side_effect=CommunicationError("gateway timeout"),
         )
 
-        with TestClient(app, raise_server_exceptions=False) as client:
-            resp = client.post(
+        async with _test_client(app) as client:
+            resp = await client.post(
                 f"/callback/{payment.id}",
                 json={"status": "paid"},
             )
@@ -256,9 +273,9 @@ async def test_success_redirect(
         repo=repo,
     )
 
-    with TestClient(app, raise_server_exceptions=False) as client:
+    async with _test_client(app) as client:
         client.follow_redirects = False
-        resp = client.get(f"/success/{payment.id}")
+        resp = await client.get(f"/success/{payment.id}")
 
     assert resp.status_code == 302
     location = resp.headers["location"]
