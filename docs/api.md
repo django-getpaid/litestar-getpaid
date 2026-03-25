@@ -76,8 +76,7 @@ Storage abstraction for the webhook retry queue. Methods:
 from litestar_getpaid.registry import LitestarPluginRegistry
 ```
 
-Wraps the core `PluginRegistry` and adds support for registering
-per-backend `Router` instances for custom callback routes.
+Wraps the core `PluginRegistry` for Litestar adapter integration.
 
 ## Controllers
 

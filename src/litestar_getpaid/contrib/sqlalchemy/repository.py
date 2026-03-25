@@ -1,9 +1,15 @@
 """SQLAlchemy 2.0 async PaymentRepository implementation."""
 
+from collections.abc import Awaitable
+from collections.abc import Callable
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from litestar_getpaid.contrib.sqlalchemy.models import PaymentModel
+
+
+OrderLoader = Callable[[str], Awaitable[object]]
 
 
 class SQLAlchemyPaymentRepository:
@@ -15,8 +21,10 @@ class SQLAlchemyPaymentRepository:
     def __init__(
         self,
         session_factory: async_sessionmaker[AsyncSession],
+        order_loader: OrderLoader | None = None,
     ) -> None:
         self._session_factory = session_factory
+        self._order_loader = order_loader
 
     async def get_by_id(self, payment_id: str) -> PaymentModel:
         """Get a payment by ID. Raises KeyError if not found."""
@@ -24,6 +32,7 @@ class SQLAlchemyPaymentRepository:
             result = await session.get(PaymentModel, payment_id)
             if result is None:
                 raise KeyError(payment_id)
+            await self._hydrate_order(result)
             session.expunge(result)
             return result
 
@@ -34,6 +43,7 @@ class SQLAlchemyPaymentRepository:
             kwargs["order_id"] = str(getattr(order, "id", order))
         async with self._session_factory() as session:
             payment = PaymentModel(**kwargs)
+            payment.order = order
             session.add(payment)
             await session.commit()
             await session.refresh(payment)
@@ -46,6 +56,7 @@ class SQLAlchemyPaymentRepository:
             merged = await session.merge(payment)
             await session.commit()
             await session.refresh(merged)
+            await self._hydrate_order(merged)
             session.expunge(merged)
             return merged
 
@@ -66,6 +77,7 @@ class SQLAlchemyPaymentRepository:
                     setattr(payment, key, value)
             await session.commit()
             await session.refresh(payment)
+            await self._hydrate_order(payment)
             session.expunge(payment)
             return payment
 
@@ -76,5 +88,13 @@ class SQLAlchemyPaymentRepository:
             result = await session.execute(stmt)
             payments = list(result.scalars().all())
             for p in payments:
+                await self._hydrate_order(p)
                 session.expunge(p)
             return payments
+
+    async def _hydrate_order(self, payment: PaymentModel) -> None:
+        if getattr(payment, "order", None) is not None:
+            return
+        if self._order_loader is None:
+            return
+        payment.order = await self._order_loader(payment.order_id)

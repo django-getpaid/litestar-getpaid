@@ -15,6 +15,39 @@ from litestar_getpaid.registry import LitestarPluginRegistry
 from litestar_getpaid.routes.callbacks import CallbackController
 
 
+class DummyOrder:
+    def __init__(self, order_id: str = "order-1") -> None:
+        self.id = order_id
+        self.description = "Test order"
+        self.currency = "PLN"
+        self.total = Decimal("100")
+
+    def get_total_amount(self) -> Decimal:
+        return self.total
+
+    def get_buyer_info(self) -> dict:
+        return {"email": "test@example.com"}
+
+    def get_description(self) -> str:
+        return self.description
+
+    def get_currency(self) -> str:
+        return self.currency
+
+    def get_items(self) -> list[dict]:
+        return []
+
+    def get_return_url(self, success: bool | None = None) -> str:
+        return "/return"
+
+
+class DummyRegistry(LitestarPluginRegistry):
+    _discovered = True
+
+    def discover(self) -> None:
+        self._discovered = True
+
+
 @pytest.fixture
 def config():
     return GetpaidConfig(
@@ -30,7 +63,7 @@ def mock_repo():
     repo = AsyncMock()
     payment = AsyncMock()
     payment.id = "pay-1"
-    payment.order = AsyncMock()
+    payment.order = DummyOrder()
     payment.amount_required = Decimal("100")
     payment.currency = "PLN"
     payment.status = "prepared"
@@ -56,7 +89,7 @@ def app(config, mock_repo):
             "config": Provide(lambda: config, sync_to_thread=False),
             "repository": Provide(lambda: mock_repo, sync_to_thread=False),
             "registry": Provide(
-                lambda: LitestarPluginRegistry(),
+                lambda: DummyRegistry(),
                 sync_to_thread=False,
             ),
             "retry_store": Provide(lambda: None, sync_to_thread=False),
@@ -156,7 +189,7 @@ def test_callback_stores_retry_on_failure(config, mock_repo):
             "config": Provide(lambda: config, sync_to_thread=False),
             "repository": Provide(lambda: mock_repo, sync_to_thread=False),
             "registry": Provide(
-                lambda: LitestarPluginRegistry(),
+                lambda: DummyRegistry(),
                 sync_to_thread=False,
             ),
             "retry_store": Provide(lambda: retry_store, sync_to_thread=False),
@@ -179,6 +212,7 @@ def test_callback_stores_retry_on_failure(config, mock_repo):
                 json={"status": "paid"},
             )
     assert resp.status_code == 502
+    assert resp.json()["detail"] == "Callback processing failed"
     retry_store.store_failed_callback.assert_called_once()
 
 
@@ -193,7 +227,7 @@ def test_invalid_callback_returns_400_and_skips_retry(config, mock_repo):
             "config": Provide(lambda: config, sync_to_thread=False),
             "repository": Provide(lambda: mock_repo, sync_to_thread=False),
             "registry": Provide(
-                lambda: LitestarPluginRegistry(),
+                lambda: DummyRegistry(),
                 sync_to_thread=False,
             ),
             "retry_store": Provide(lambda: retry_store, sync_to_thread=False),

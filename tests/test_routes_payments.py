@@ -15,6 +15,39 @@ from litestar_getpaid.registry import LitestarPluginRegistry
 from litestar_getpaid.routes.payments import PaymentController
 
 
+class DummyOrder:
+    def __init__(self, order_id: str = "order-1") -> None:
+        self.id = order_id
+        self.description = "Test order"
+        self.currency = "PLN"
+        self.total = Decimal("100")
+
+    def get_total_amount(self) -> Decimal:
+        return self.total
+
+    def get_buyer_info(self) -> dict:
+        return {"email": "test@example.com"}
+
+    def get_description(self) -> str:
+        return self.description
+
+    def get_currency(self) -> str:
+        return self.currency
+
+    def get_items(self) -> list[dict]:
+        return []
+
+    def get_return_url(self, success: bool | None = None) -> str:
+        return "/return"
+
+
+class DummyRegistry(LitestarPluginRegistry):
+    _discovered = True
+
+    def discover(self) -> None:
+        self._discovered = True
+
+
 @pytest.fixture
 def config():
     return GetpaidConfig(
@@ -29,7 +62,7 @@ def config():
 def mock_payment():
     payment = AsyncMock()
     payment.id = "pay-1"
-    payment.order = AsyncMock()
+    payment.order = DummyOrder()
     payment.order_id = "order-1"
     payment.amount_required = Decimal("100")
     payment.currency = "PLN"
@@ -64,7 +97,7 @@ def app(config, mock_repo):
             "config": Provide(lambda: config, sync_to_thread=False),
             "repository": Provide(lambda: mock_repo, sync_to_thread=False),
             "registry": Provide(
-                lambda: LitestarPluginRegistry(),
+                lambda: DummyRegistry(),
                 sync_to_thread=False,
             ),
             "order_resolver": Provide(lambda: None, sync_to_thread=False),
@@ -107,13 +140,7 @@ def test_list_payments(client, mock_repo, mock_payment):
 
 def test_create_payment(config, mock_repo, mock_payment):
     """POST /payments/ creates a new payment."""
-    mock_order = AsyncMock()
-    mock_order.get_total_amount = lambda: Decimal("100")
-    mock_order.get_buyer_info = lambda: {"email": "test@example.com"}
-    mock_order.get_description = lambda: "Test order"
-    mock_order.get_currency = lambda: "PLN"
-    mock_order.get_items = lambda: []
-    mock_order.get_return_url = lambda success=None: "/return"
+    mock_order = DummyOrder()
 
     resolver = AsyncMock()
     resolver.resolve = AsyncMock(return_value=mock_order)
@@ -124,7 +151,7 @@ def test_create_payment(config, mock_repo, mock_payment):
             "config": Provide(lambda: config, sync_to_thread=False),
             "repository": Provide(lambda: mock_repo, sync_to_thread=False),
             "registry": Provide(
-                lambda: LitestarPluginRegistry(),
+                lambda: DummyRegistry(),
                 sync_to_thread=False,
             ),
             "order_resolver": Provide(lambda: resolver, sync_to_thread=False),

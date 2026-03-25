@@ -10,6 +10,11 @@ from litestar_getpaid.plugin import create_payment_router
 from litestar_getpaid.registry import LitestarPluginRegistry
 
 
+class DummyRegistry(LitestarPluginRegistry):
+    def discover(self) -> None:
+        self._discovered = True
+
+
 def _make_config() -> GetpaidConfig:
     return GetpaidConfig(
         default_backend="dummy",
@@ -49,7 +54,7 @@ def test_create_payment_router_includes_all_route_groups() -> None:
 
 def test_create_payment_router_with_custom_registry() -> None:
     """Can pass a custom LitestarPluginRegistry."""
-    custom_registry = LitestarPluginRegistry()
+    custom_registry = DummyRegistry()
 
     router = create_payment_router(
         config=_make_config(),
@@ -80,7 +85,7 @@ def test_create_payment_router_dependencies() -> None:
     """Router has all expected dependencies configured."""
     config = _make_config()
     repo = AsyncMock()
-    registry = LitestarPluginRegistry()
+    registry = DummyRegistry()
     resolver = AsyncMock()
     retry = AsyncMock()
 
@@ -97,6 +102,7 @@ def test_create_payment_router_dependencies() -> None:
         "repository",
         "registry",
         "order_resolver",
+        "order_loader",
         "retry_store",
     }
     assert set(router.dependencies.keys()) == expected_keys
@@ -106,6 +112,7 @@ def test_create_payment_router_dependencies() -> None:
     assert router.dependencies["repository"].dependency() is repo
     assert router.dependencies["registry"].dependency() is registry
     assert router.dependencies["order_resolver"].dependency() is resolver
+    assert router.dependencies["order_loader"].dependency() is None
     assert router.dependencies["retry_store"].dependency() is retry
 
 
@@ -139,12 +146,13 @@ def test_create_payment_router_none_optional_deps() -> None:
     )
 
     assert router.dependencies["order_resolver"].dependency() is None
+    assert router.dependencies["order_loader"].dependency() is None
     assert router.dependencies["retry_store"].dependency() is None
 
 
 def test_create_payment_router_calls_discover() -> None:
     """Registry discover() is called during router creation."""
-    registry = LitestarPluginRegistry()
+    registry = DummyRegistry()
     assert not registry._discovered
 
     create_payment_router(

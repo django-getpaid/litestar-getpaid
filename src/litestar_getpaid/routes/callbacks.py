@@ -77,7 +77,7 @@ class CallbackController(Controller):
                 )
             return Response(
                 content={
-                    "detail": str(exc),
+                    "detail": "Callback processing failed",
                     "code": "callback_failed",
                 },
                 status_code=502,

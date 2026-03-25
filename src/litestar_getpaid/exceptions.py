@@ -25,6 +25,18 @@ class ConfigurationError(Exception):
         super().__init__(message)
 
 
+def _public_detail(exc: Exception) -> str:
+    if isinstance(exc, CommunicationError):
+        return "Payment gateway communication failed"
+    if isinstance(exc, InvalidCallbackError):
+        return "Invalid callback payload"
+    if isinstance(exc, InvalidTransitionError):
+        return "Payment state transition rejected"
+    if isinstance(exc, CredentialsError):
+        return "Payment gateway credentials are invalid"
+    return str(exc)
+
+
 def _error_response(
     request: Request, detail: str, code: str, status_code: int
 ) -> Response:
@@ -38,28 +50,48 @@ def handle_communication_error(
     request: Request, exc: CommunicationError
 ) -> Response:
     """Map CommunicationError to 502."""
-    return _error_response(request, str(exc), "communication_error", 502)
+    return _error_response(
+        request,
+        _public_detail(exc),
+        "communication_error",
+        502,
+    )
 
 
 def handle_invalid_callback(
     request: Request, exc: InvalidCallbackError
 ) -> Response:
     """Map InvalidCallbackError to 400."""
-    return _error_response(request, str(exc), "invalid_callback", 400)
+    return _error_response(
+        request,
+        _public_detail(exc),
+        "invalid_callback",
+        400,
+    )
 
 
 def handle_invalid_transition(
     request: Request, exc: InvalidTransitionError
 ) -> Response:
     """Map InvalidTransitionError to 409."""
-    return _error_response(request, str(exc), "invalid_transition", 409)
+    return _error_response(
+        request,
+        _public_detail(exc),
+        "invalid_transition",
+        409,
+    )
 
 
 def handle_credentials_error(
     request: Request, exc: CredentialsError
 ) -> Response:
     """Map CredentialsError to 500."""
-    return _error_response(request, str(exc), "credentials_error", 500)
+    return _error_response(
+        request,
+        _public_detail(exc),
+        "credentials_error",
+        500,
+    )
 
 
 def handle_payment_not_found(

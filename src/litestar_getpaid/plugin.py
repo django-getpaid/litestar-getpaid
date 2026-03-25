@@ -6,7 +6,11 @@ from litestar.di import Provide
 
 from litestar_getpaid.config import GetpaidConfig
 from litestar_getpaid.exceptions import EXCEPTION_HANDLERS
-from litestar_getpaid.protocols import CallbackRetryStore, OrderResolver
+from litestar_getpaid.protocols import (
+    CallbackRetryStore,
+    OrderLoader,
+    OrderResolver,
+)
 from litestar_getpaid.registry import LitestarPluginRegistry
 from litestar_getpaid.routes.callbacks import CallbackController
 from litestar_getpaid.routes.payments import PaymentController
@@ -20,6 +24,7 @@ def create_payment_router(
     registry: LitestarPluginRegistry | None = None,
     order_resolver: OrderResolver | None = None,
     retry_store: CallbackRetryStore | None = None,
+    order_loader: OrderLoader | None = None,
 ) -> Router:
     """Create a configured payment router.
 
@@ -50,6 +55,7 @@ def create_payment_router(
             "order_resolver": Provide(
                 lambda: order_resolver, sync_to_thread=False
             ),
+            "order_loader": Provide(lambda: order_loader, sync_to_thread=False),
             "retry_store": Provide(lambda: retry_store, sync_to_thread=False),
         },
         exception_handlers=EXCEPTION_HANDLERS,

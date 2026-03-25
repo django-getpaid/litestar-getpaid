@@ -14,7 +14,7 @@ Initial alpha release.
 - `Payment` protocol re-export from core for wrapper integrations
 - `OrderResolver` protocol for pluggable order lookup
 - `CallbackRetryStore` protocol for webhook retry persistence
-- `LitestarPluginRegistry` wrapping core registry with per-backend router support
+- `LitestarPluginRegistry` wrapping the core registry for Litestar adapter usage
 - Exception handlers mapping getpaid-core exceptions to HTTP responses
 - Pydantic request/response schemas for all endpoints
 - `litestar_getpaid.contrib.sqlalchemy` package:
